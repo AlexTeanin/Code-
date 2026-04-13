@@ -1190,16 +1190,19 @@ class MetalAccountingApp:
         for article in self.articles + self.summary_rows + self.glass_articles:
             if article in self.records:
                 changed = False
-                # Сначала проверяем пересчёт месяца - если есть, используем его
+                # Сначала проверяем пересчёт месяца - если есть и не пустой, используем его
                 if 'monthly_recalc' in self.records[article] and prev_month_key in self.records[article]['monthly_recalc']:
                     recalc_value = self.records[article]['monthly_recalc'][prev_month_key]
-                    if recalc_value is not None and recalc_value != "":
+                    # Проверяем, что значение не None, не пустая строка и не 0
+                    if recalc_value is not None and str(recalc_value).strip() != '' and float(str(recalc_value).strip()) != 0:
                         self.records[article]['initial_balance'] = recalc_value
                         changed = True
-                # Если нет пересчёта, используем итог месяца
-                elif 'monthly_totals' in self.records[article] and prev_month_key in self.records[article]['monthly_totals']:
-                    self.records[article]['initial_balance'] = self.records[article]['monthly_totals'][prev_month_key]
-                    changed = True
+                # Если нет пересчёта (или он пустой/нулевой), используем итог месяца
+                if not changed and 'monthly_totals' in self.records[article] and prev_month_key in self.records[article]['monthly_totals']:
+                    total_value = self.records[article]['monthly_totals'][prev_month_key]
+                    if total_value is not None:
+                        self.records[article]['initial_balance'] = total_value
+                        changed = True
                 if changed:
                     self._update_timestamp(article)
                     self._save_to_db(article)
@@ -1633,13 +1636,18 @@ class MetalAccountingApp:
                     if 'monthly_week_summaries' not in self.records[article]:
                         self.records[article]['monthly_week_summaries'] = {}
                     self.records[article]['monthly_week_summaries'][month_key] = self.records[article]['week_summaries'].copy()
-                # Сохраняем пересчёт месяца только если он есть (не пустой)
+                # Сохраняем пересчёт месяца только если он есть (не пустой и не 0)
                 if 'month_recalc' in self.records[article]:
                     recalc_value = self.records[article]['month_recalc']
-                    if recalc_value is not None and recalc_value != "" and recalc_value != 0:
+                    # Проверяем, что значение не None, не пустая строка и не 0
+                    if recalc_value is not None and str(recalc_value).strip() != '' and float(str(recalc_value).strip()) != 0:
                         if 'monthly_recalc' not in self.records[article]:
                             self.records[article]['monthly_recalc'] = {}
                         self.records[article]['monthly_recalc'][month_key] = recalc_value
+                    else:
+                        # Если значение пустое или 0 - удаляем из monthly_recalc
+                        if 'monthly_recalc' in self.records[article] and month_key in self.records[article]['monthly_recalc']:
+                            del self.records[article]['monthly_recalc'][month_key]
         self.save_data()
     
     def load_month_data(self):
@@ -1650,10 +1658,11 @@ class MetalAccountingApp:
                     self.records[article]['week_summaries'] = self.records[article]['monthly_week_summaries'][month_key].copy()
                 else:
                     self.records[article]['week_summaries'] = {}
-                # Загружаем пересчёт месяца только если он есть в сохранённых данных
+                # Загружаем пересчёт месяца только если он есть в сохранённых данных и не равен 0
                 if 'monthly_recalc' in self.records[article] and month_key in self.records[article]['monthly_recalc']:
                     recalc_value = self.records[article]['monthly_recalc'][month_key]
-                    if recalc_value is not None and recalc_value != "" and recalc_value != 0:
+                    # Проверяем, что значение не None, не пустая строка и не 0
+                    if recalc_value is not None and str(recalc_value).strip() != '' and float(str(recalc_value).strip()) != 0:
                         self.records[article]['month_recalc'] = recalc_value
                     else:
                         self.records[article].pop('month_recalc', None)
